@@ -10,7 +10,7 @@
 
 
 import sys
-from pyparsing import Word, Literal,  Keyword, Forward, alphas, alphanums, OneOrMore, ZeroOrMore
+from pyparsing import Word, Literal,  Keyword, Forward, alphas, alphanums, OneOrMore, ZeroOrMore, Optional
 
 
 #
@@ -321,14 +321,18 @@ def parse (input):
 
     pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pIF | pLET | pUSER)
 
-    pDEF = "(" + Keyword("defun") + pNAME + "(" + OneOrMore(pNAME) + ")" + "(" + pEXPR + "))"
-    pDEF.setParseAction(lambda result: {'name':result[2],'body':result[-2],'params':result[4:-4],'result':'function'})
+    pEXPROUTER = Forward()
+    pEXPROUTER << pEXPR
+    pEXPROUTER.setParseAction(lambda result: {'expr':result[0],'result':'expression'})
 
-    print pDEF.parseString(input)
-    # result = pEXPR.parseString(input)[0]
-    
-    # print pEXPR.parseString(input)[0]
-    return 0    # the first element of the result is the expression
+    pDEF = "(" + Keyword("defun") + pNAME + "(" + OneOrMore(pNAME) + ")" + pEXPR + ")"
+    pDEF.setParseAction(lambda result: {'name':result[2],'body':result[-2],'params':result[4:-3],'result':'function'})
+
+    pALL = pDEF | pEXPROUTER
+
+    # print pALL.parseString(input)
+    result = pALL.parseString(input)[0]
+    return result    # the first element of the result is the expression
 
 def shell ():
     # A simple shell
@@ -345,12 +349,61 @@ def shell ():
             v = exp['expr'].eval(FUN_DICT)
             print v
         elif exp['result']=='function':
-            print "Function " + exp['name'] + " added to the functions dictionary"
-            FUN_DICT[name] = {
+            print "Function", exp['name'], "added to the functions dictionary"
+            FUN_DICT[exp['name']] = {
                 "params":exp['params'],
                 "body":exp['body']
             }
 
+def parse_natural(input):
+
+    idChars = alphas+"_+*-?!=<>"
+
+    pNAME = Word(idChars,idChars+"0123456789")
+
+    pINTEGER = Word("-0123456789","0123456789")
+    pINTEGER.setParseAction(lambda result: EInteger(int(result[0])) )
+
+    pBOOLEAN = Keyword("true") | Keyword("false")
+    pBOOLEAN.setParseAction(lambda result: EBoolean(result[0]=="true") )
+
+    pIDENTIFIER = Word(idChars, idChars+"0123456789")
+    pIDENTIFIER.setParseAction(lambda result: EId(result[0]) )
+
+    pEXPR = Forward()
+
+    pWRAPPEDEXPR = "(" + pEXPR + ")"
+    pWRAPPEDEXPR.setParseAction(lambda result: result[1])
+
+    pIF = pEXPR + "?" + pEXPR + ":" + pEXPR
+    pIF.setParseAction(lambda result: EIf(result[0],result[2],result[4]))
+
+    pBINDINGS = Forward()
+    pBINDINGS << pNAME + "=" + pEXPR + Optional("," + pBINDINGS)
+
+    def splitBindings(bindings):
+        [(bindings[i],bindings[i+1]) for i in range((len(bindings) + 1)/4)]
+
+    pLET = Keyword("let") + "(" + pBINDINGS + ")" + pEXPR
+    pLET.setParseAction(lambda result: ELet(splitBindings(result[2]),result[-1]) )
+
+    pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pWRAPPEDEXPR | pIF | pLET)
+
+    return pEXPR.parseString(input)[0]
+
+def shell_natural ():
+    # A simple shell
+    # Repeatedly read a line of input, parse it, and evaluate the result
+
+    print "Homework 3 - Calc Language (Natural syntax)"
+    while True:
+        inp = raw_input("calc> ")
+        if not inp:
+            return
+        exp = parse_natural(inp)
+        print "Abstract representation:", exp
+        v = exp.eval(INITIAL_FUN_DICT)
+        print v
 
 # increase stack size to let us call recursive functions quasi comfortably
 sys.setrecursionlimit(10000)
