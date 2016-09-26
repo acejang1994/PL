@@ -265,6 +265,8 @@ INITIAL_FUN_DICT = {
                                                                EId("e")])]))}
 }
 
+FUN_DICT = INITIAL_FUN_DICT.copy()
+
 
 
 ##
@@ -292,36 +294,36 @@ def parse (input):
     idChars = alphas+"_+*-?!=<>"
 
     pIDENTIFIER = Word(idChars, idChars+"0123456789")
-    pIDENTIFIER.setParseAction(lambda result: EId(result[0]))
+    pIDENTIFIER.setParseAction(lambda result: {'result': 'expression', 'expr':EId(result[0])} )
 
     # A name is like an identifier but it does not return an EId...
     pNAME = Word(idChars,idChars+"0123456789")
 
     pINTEGER = Word("-0123456789","0123456789")
-    pINTEGER.setParseAction(lambda result: EInteger(int(result[0])))
+    pINTEGER.setParseAction(lambda result: {'result': 'expression', 'expr':EInteger(int(result[0]))} )
 
     pBOOLEAN = Keyword("true") | Keyword("false")
-    pBOOLEAN.setParseAction(lambda result: EBoolean(result[0]=="true"))
+    pBOOLEAN.setParseAction(lambda result: {'result': 'expression', 'expr':EBoolean(result[0]=="true")} )
 
     pEXPR = Forward()
 
     pIF = "(" + Keyword("if") + pEXPR + pEXPR + pEXPR + ")"
-    pIF.setParseAction(lambda result: EIf(result[2],result[3],result[4]))
+    pIF.setParseAction(lambda result: {'result': 'expression', 'expr':EIf(result[2],result[3],result[4])} )
 
     pBINDING = "(" + pNAME + pEXPR + ")"
-    pBINDING.setParseAction(lambda result: (result[1],result[2]))
+    pBINDING.setParseAction(lambda result: {'result': 'expression', 'expr':(result[1],result[2])} )
 
     pLET = "(" + Keyword("let") + "(" + OneOrMore(pBINDING) + ")" + pEXPR + ")"
-    pLET.setParseAction(lambda result: ELet(result[3:-3],result[-2]))
+    pLET.setParseAction(lambda result: {'result': 'expression', 'expr':ELet(result[3:-3],result[-2])} )
 
     pPLUS = "(" + Keyword("+") + pEXPR + pEXPR + ")"
-    pPLUS.setParseAction(lambda result: ECall("+",[result[2],result[3]]))
+    pPLUS.setParseAction(lambda result: {'result': 'expression', 'expr':ECall("+",[result[2],result[3]])} )
 
     pTIMES = "(" + Keyword("*") + pEXPR + pEXPR + ")"
-    pTIMES.setParseAction(lambda result: ECall("*",[result[2],result[3]]))
+    pTIMES.setParseAction(lambda result: {'result': 'expression', 'expr':ECall("*",[result[2],result[3]])} )
 
     pUSER = "(" + pNAME + ZeroOrMore(pEXPR) + ")"
-    pUSER.setParseAction(lambda result: ECall(result[1], result[2:-1] ))
+    pUSER.setParseAction(lambda result: {'result': 'expression', 'expr':ECall(result[1], result[2:-1] )} )
 
     pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pIF | pLET | pPLUS | pTIMES | pUSER)
 
@@ -329,7 +331,6 @@ def parse (input):
 
     result = pEXPR.parseString(input)[0]
     return result    # the first element of the result is the expression
-
 
 def shell ():
     # A simple shell
@@ -341,9 +342,18 @@ def shell ():
         if not inp:
             return
         exp = parse(inp)
-        print "Abstract representation:", exp
-        v = exp.eval(INITIAL_FUN_DICT)
-        print v
+        print exp
+        if exp['result']=='expression':
+            print "Abstract representation:", exp['expr']
+            v = exp['expr'].eval(FUN_DICT)
+            print v
+        elif exp['result']=='function':
+            print "Function " + exp['name'] + " added to the functions dictionary"
+            FUN_DICT[name] = {
+                "params":exp['params'],
+                "body":exp['body']
+            }
+
 
 # increase stack size to let us call recursive functions quasi comfortably
 sys.setrecursionlimit(10000)
