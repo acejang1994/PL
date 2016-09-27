@@ -10,7 +10,7 @@
 
 
 import sys
-from pyparsing import Word, Literal,  Keyword, Forward, alphas, alphanums, OneOrMore, ZeroOrMore, Optional
+from pyparsing import *
 
 
 #
@@ -357,38 +357,66 @@ def shell ():
 
 def parse_natural(input):
 
+    pEXPR = Forward()
+    pOPS1 = Forward()
+    pOPS2 = Forward()
+
     idChars = alphas+"_+*-?!=<>"
 
     pNAME = Word(idChars,idChars+"0123456789")
 
+    def printResult(result):
+        print result
+
     pINTEGER = Word("-0123456789","0123456789")
     pINTEGER.setParseAction(lambda result: EInteger(int(result[0])) )
+    # pINTEGER.setParseAction(lambda result: printResult(result))
 
-    pBOOLEAN = Keyword("true") | Keyword("false")
+    pBOOLEAN = (Keyword("true") | Keyword("false")) + StringEnd()
     pBOOLEAN.setParseAction(lambda result: EBoolean(result[0]=="true") )
+    # pBOOLEAN.setParseAction(lambda result: printResult(result))
 
-    pIDENTIFIER = Word(idChars, idChars+"0123456789")
-    pIDENTIFIER.setParseAction(lambda result: EId(result[0]) )
+    pPRIM = (pINTEGER | pBOOLEAN)
+    # pPRIM.setParseAction(lambda result: printResult(result))
 
-    pEXPR = Forward()
+    pPARENS = pPRIM | ("(" + pOPS1 + ")")
+    # pPARENS.setParseAction(lambda result: printResult(result))
 
-    pWRAPPEDEXPR = "(" + pEXPR + ")"
-    pWRAPPEDEXPR.setParseAction(lambda result: result[1])
+    pOPS2 = pPARENS + Optional(Keyword("*") + pOPS2)
+    pOPS2.setParseAction(lambda result: result if (len(result)==1) else (ECall("*",[result[0],result[-1]])))
+    # pOPS2.setParseAction(lambda result: printResult(result))
 
-    pIF = pEXPR + "?" + pEXPR + ":" + pEXPR
-    pIF.setParseAction(lambda result: EIf(result[0],result[2],result[4]))
+    pOPS1 = pOPS2 + Optional((Keyword("+") | Keyword("-")) + pOPS1)
+    pOPS1.setParseAction(lambda result: result if (len(result)==1) else (ECall(result[2],[result[0],result[-1]])))
+    # pOPS1.setParseAction(lambda result: printResult(result))
 
-    pBINDINGS = Forward()
-    pBINDINGS << pNAME + "=" + pEXPR + Optional("," + pBINDINGS)
+    pEXPR << pOPS1
 
-    def splitBindings(bindings):
-        [(bindings[i],bindings[i+1]) for i in range((len(bindings) + 1)/4)]
 
-    pLET = Keyword("let") + "(" + pBINDINGS + ")" + pEXPR
-    pLET.setParseAction(lambda result: ELet(splitBindings(result[2]),result[-1]) )
+    # pIDENTIFIER = ~Keyword("let") + Word(idChars, idChars+"0123456789")
+    # pIDENTIFIER.setParseAction(lambda result: EId(result[0]) )
 
-    pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pWRAPPEDEXPR | pIF | pLET)
+    # pEXPR = Forward()
 
+    # pWRAPPEDEXPR = "(" + pEXPR + ")"
+    # pWRAPPEDEXPR.setParseAction(lambda result: result[1])
+
+    # pIF = pEXPR + "?" + pEXPR + ":" + pEXPR
+    # pIF.setParseAction(lambda result: EIf(result[0],result[2],result[4]))
+
+    # pBINDINGS = Forward()
+    # pBINDINGS << pNAME + "=" + pEXPR + Optional("," + pBINDINGS)
+
+    # def splitBindings(bindings):
+    #     [(bindings[i],bindings[i+1]) for i in range((len(bindings) + 1)/4)]
+
+    # pLET = Keyword("let") + "(" + pBINDINGS + ")" + pEXPR
+    # pLET.setParseAction(lambda result: ELet(splitBindings(result[2]),result[-1]) )
+
+    #pEXPR << (pIF | pWRAPPEDEXPR | pIDENTIFIER | pBOOLEAN | pINTEGER)
+    # pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pWRAPPEDEXPR | pIF)
+
+    print pEXPR.parseString(input)
     return pEXPR.parseString(input)[0]
 
 def shell_natural ():
