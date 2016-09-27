@@ -364,6 +364,7 @@ def parse_natural(input):
     idChars = alphas+"_+*-?!=<>"
 
     pNAME = Word(idChars,idChars+"0123456789")
+    pNAME.setParseAction(lambda result: EId(result))
 
     def printResult(result):
         print result
@@ -372,26 +373,31 @@ def parse_natural(input):
     pINTEGER.setParseAction(lambda result: EInteger(int(result[0])) )
     # pINTEGER.setParseAction(lambda result: printResult(result))
 
-    pBOOLEAN = (Keyword("true") | Keyword("false")) + StringEnd()
+    pBOOLEAN = (Keyword("true") | Keyword("false"))
     pBOOLEAN.setParseAction(lambda result: EBoolean(result[0]=="true") )
     # pBOOLEAN.setParseAction(lambda result: printResult(result))
 
-    pPRIM = (pINTEGER | pBOOLEAN)
+    pPRIM = (pINTEGER | pBOOLEAN | pNAME)
     # pPRIM.setParseAction(lambda result: printResult(result))
 
-    pPARENS = pPRIM | ("(" + pOPS1 + ")")
+    pPARENS = pPRIM | (Literal("(") + pOPS1 + Literal(")"))
+    pPARENS.setParseAction(lambda result: result if (len(result)==1) else result[1])
     # pPARENS.setParseAction(lambda result: printResult(result))
 
-    pOPS2 = pPARENS + Optional(Keyword("*") + pOPS2)
+    pIF = pPARENS | (pOPS1 + Literal("?") + pOPS1 + Literal(":") + pOPS1)
+    pIF.setParseAction(lambda result: result if (len(result)==1) else EIf(result[0],result[2],result[4]))
+
+    pOPS2 << pIF + Optional(Literal("*") + pOPS2)
     pOPS2.setParseAction(lambda result: result if (len(result)==1) else (ECall("*",[result[0],result[-1]])))
     # pOPS2.setParseAction(lambda result: printResult(result))
 
-    pOPS1 = pOPS2 + Optional((Keyword("+") | Keyword("-")) + pOPS1)
-    pOPS1.setParseAction(lambda result: result if (len(result)==1) else (ECall(result[2],[result[0],result[-1]])))
+    pOPS1 << pOPS2 + Optional((Literal("+") ^ Literal("-")) + pOPS1)
+    pOPS1.setParseAction(lambda result: result if (len(result)==1) else (ECall(result[1],[result[0],result[-1]])))
     # pOPS1.setParseAction(lambda result: printResult(result))
 
     pEXPR << pOPS1
-
+    print pEXPR.parseString(input)
+    return pEXPR.parseString(input)[0]
 
     # pIDENTIFIER = ~Keyword("let") + Word(idChars, idChars+"0123456789")
     # pIDENTIFIER.setParseAction(lambda result: EId(result[0]) )
@@ -416,8 +422,7 @@ def parse_natural(input):
     #pEXPR << (pIF | pWRAPPEDEXPR | pIDENTIFIER | pBOOLEAN | pINTEGER)
     # pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pWRAPPEDEXPR | pIF)
 
-    print pEXPR.parseString(input)
-    return pEXPR.parseString(input)[0]
+
 
 def shell_natural ():
     # A simple shell
